@@ -94,6 +94,6 @@ func main() {
 		log.Fatalf("Unable to retrieve Sheets client: %v", err)
 	}
 
-    spreadsheetId := "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
+    spreadsheetId := "12Ih9Z6w2_uyTWwnPhiOtnLJkixJI3CrR8w0BXOvuDdo"
     trivia.Start(srv.Spreadsheets, spreadsheetId)
 }
