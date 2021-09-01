@@ -1,7 +1,13 @@
 package trivia
 
 import (
+	"bufio"
 	"fmt"
+	"log"
+	"os"
+	"strconv"
+	"strings"
+	"time"
 
 	"google.golang.org/api/sheets/v4"
 )
@@ -11,35 +17,49 @@ type TriviaHandler struct {
 	Sheets      *sheets.SpreadsheetsService
 	SheetID     string
 
-	Scores      map[ROUND]map[string]int
-	Cumulative  map[string]int
-	Wagers      map[string]int
-	FinalScores map[string]int
+	ScoreKeeper ScoreKeeper
 }
 
-func (t TriviaHandler) AddScoresToScoreboard(round ROUND, roundScores map[string]int) {
-	t.Scores[round] = roundScores
-	t.PrettyPrintScores(round)
-}
-
-func (t TriviaHandler) PrettyPrintScores(round ROUND) {
-	fmt.Println(round)
-	for team, score := range t.Scores[round] {
-		fmt.Printf("%2v  %v\n", score, team)
+func NewTriviaHandler(sheets *sheets.SpreadsheetsService, sheetId string, scoreKeeper ScoreKeeper) TriviaHandler {
+	t := TriviaHandler{
+		Sheets:  sheets,
+		SheetID: sheetId,
+		ScoreKeeper: scoreKeeper,
 	}
 
-	if round == RoundThree {
-		for team, score := range t.Scores[RoundOne] {
-			t.Cumulative[team] += score
+	numPlayers, err := t.GetNumberOfPlayersFromStdIn()
+	if err != nil {
+		panic(err)
+	}
+
+	t.NumPlayers = numPlayers
+
+	return t
+}
+
+func (t TriviaHandler) GetNumberOfPlayersFromStdIn() (int, error){
+	fmt.Print("-> ")
+	reader := bufio.NewReader(os.Stdin)
+    text, _ := reader.ReadString('\n')
+    text = strings.Replace(text, "\n", "", -1)
+	r, err := strconv.ParseInt(text, 10, 64)
+	return int(r), err
+}
+
+func (t TriviaHandler) WaitForAllSubmissions(round ROUND, numPlayers int) [][]interface{} {
+	sheetRange := string(round) + "!A2:N15"
+	getRequest := t.Sheets.Values.Get(t.SheetID, sheetRange)
+
+	for {
+		resp, err := getRequest.Do()
+		if err != nil {
+			log.Fatalf("Unable to retrieve data from sheet: %v", err)
 		}
-		for team, score := range t.Scores[RoundTwo] {
-			t.Cumulative[team] += score
-		}
-		for team, score := range t.Scores[RoundThree] {
-			t.Cumulative[team] += score
-		}
-		for team, score := range t.Cumulative {
-			fmt.Printf("%2v  %v\n", score, team)
+
+		if len(resp.Values) != numPlayers {
+			time.Sleep(3 * time.Second)
+		} else {
+			return resp.Values
 		}
 	}
 }
