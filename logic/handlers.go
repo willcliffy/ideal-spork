@@ -9,8 +9,21 @@ import (
 	"strings"
 	"time"
 
+	"github.com/willcliffy/ideal-spork/utils"
 	"google.golang.org/api/sheets/v4"
 )
+
+type ScoreKeeper struct {
+	Players     []Player
+
+	Rounds map[ROUND]Round
+}
+
+func NewScoreKeeper() ScoreKeeper {
+	return ScoreKeeper{
+		Rounds: make(map[ROUND]Round),
+	}
+}
 
 type TriviaHandler struct {
 	NumPlayers  int
@@ -61,5 +74,35 @@ func (t TriviaHandler) WaitForAllSubmissions(round ROUND, numPlayers int) [][]in
 		} else {
 			return resp.Values
 		}
+	}
+}
+
+func (s ScoreKeeper) ScoreCumulative(email string) int {
+	r1 := utils.StringArrayIndexOf(s.Rounds[RoundOne].emails, email)
+	r2 := utils.StringArrayIndexOf(s.Rounds[RoundTwo].emails, email)
+	r3 := utils.StringArrayIndexOf(s.Rounds[RoundThree].emails, email)
+
+	if r1 < 0 || r2 < 0 || r3 < 0 {
+		panic(fmt.Sprintf("Email not found: %v", email))
+	}
+
+	return s.Rounds[RoundOne].scores[r1] + s.Rounds[RoundTwo].scores[r2] + s.Rounds[RoundThree].scores[r3]
+}
+
+func (s ScoreKeeper) ScoreFinal(email string, correct bool) int {
+	cumulativeInd := utils.StringArrayIndexOf(s.Rounds[Cumulative].emails, email)
+	wagerInd := utils.StringArrayIndexOf(s.Rounds[Wagers].emails, email)
+
+	if cumulativeInd < 0 || wagerInd < 0 {
+		panic(fmt.Sprintf("Email not found: %v", email))
+	}
+
+	cumulative := s.Rounds[Cumulative].scores[cumulativeInd]
+	wager := s.Rounds[Wagers].scores[wagerInd]
+
+	if correct {
+		return cumulative + wager
+	} else {
+		return cumulative - wager
 	}
 }
